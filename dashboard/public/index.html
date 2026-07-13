@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API Bridge Dashboard</title>
+  <title>API Bridge Dashboard — Monitor</title>
   <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f8cff' stroke-width='2'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>" />
 </head>
 <body>
   <!-- ─── Header ─────────────────────────────────────────── -->
@@ -14,21 +15,28 @@
         <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <h1>API Bridge Dashboard</h1>
+        <div>
+          <h1>API Bridge <span class="logo-highlight">Monitor</span></h1>
+          <span class="logo-subtitle">Real-time System Dashboard</span>
+        </div>
       </div>
       <div class="header-meta">
-        <span class="health-indicator" id="healthIndicator">
-          <span class="health-dot"></span>
-          <span id="healthText">Checking...</span>
-        </span>
+        <div class="connection-status" id="connectionStatus">
+          <span class="connection-dot" id="connDot"></span>
+          <span id="connText">Connected</span>
+        </div>
         <span class="uptime" id="uptime">Uptime: --</span>
+        <span class="version-badge">v1.0.0</span>
       </div>
     </div>
-    <nav class="nav-tabs">
+    <nav class="nav-tabs" id="navTabs">
       <button class="nav-tab active" data-tab="overview">Overview</button>
-      <button class="nav-tab" data-tab="sync">Sync Operations</button>
+      <button class="nav-tab" data-tab="sync">Sync Ops</button>
       <button class="nav-tab" data-tab="rate-limit">Rate Limiter</button>
+      <button class="nav-tab" data-tab="retry">Retry Handler</button>
+      <button class="nav-tab" data-tab="audit">Audit Log</button>
       <button class="nav-tab" data-tab="adapters">Adapters</button>
+      <button class="nav-tab" data-tab="config">Configuration</button>
       <button class="nav-tab" data-tab="errors">Errors</button>
     </nav>
   </header>
@@ -36,8 +44,45 @@
   <!-- ─── Main Content ───────────────────────────────────── -->
   <main class="main">
 
-    <!-- ── Tab: Overview ─────────────────────────────────── -->
+    <!-- ════ Tab: Overview ═══════════════════════════════════ -->
     <section class="tab-content active" id="tab-overview">
+      <!-- Status Bar -->
+      <div class="status-bar" id="statusBar">
+        <div class="status-bar-item">
+          <span class="status-label">System</span>
+          <span class="status-value healthy" id="sysHealth">Healthy</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">SOAP</span>
+          <span class="status-value" id="ovSoapStatus">--</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">SQL</span>
+          <span class="status-value" id="ovSqlStatus">--</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">Redis</span>
+          <span class="status-value" id="ovRedisStatus">--</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">Throughput</span>
+          <span class="status-value" id="ovThroughput">0/m</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">Event Loop</span>
+          <span class="status-value" id="ovEventLoop">0ms</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">Memory</span>
+          <span class="status-value" id="ovMemory">0 MB</span>
+        </div>
+        <div class="status-bar-item">
+          <span class="status-label">PID</span>
+          <span class="status-value" id="ovPid">--</span>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
       <div class="stats-grid">
         <div class="stat-card stat-card--total">
           <div class="stat-icon">🔄</div>
@@ -60,190 +105,352 @@
             <span class="stat-label">Failed</span>
           </div>
         </div>
-        <div class="stat-card stat-card--success-rate">
+        <div class="stat-card stat-card--rate">
           <div class="stat-icon">📊</div>
           <div class="stat-info">
             <span class="stat-value" id="successRate">100%</span>
             <span class="stat-label">Success Rate</span>
           </div>
         </div>
+        <div class="stat-card stat-card--active-retries">
+          <div class="stat-icon">🔄</div>
+          <div class="stat-info">
+            <span class="stat-value" id="activeRetries">0</span>
+            <span class="stat-label">Active Retries</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--blocked">
+          <div class="stat-icon">🚫</div>
+          <div class="stat-info">
+            <span class="stat-value" id="blockedCount">0</span>
+            <span class="stat-label">Rate Limit Blocks</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--avg-duration">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="avgDuration">0ms</span>
+            <span class="stat-label">Avg Sync Duration</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--throughput">
+          <div class="stat-icon">📈</div>
+          <div class="stat-info">
+            <span class="stat-value" id="throughput5m">0/m</span>
+            <span class="stat-label">Throughput (5m avg)</span>
+          </div>
+        </div>
       </div>
 
+      <!-- Charts Row -->
       <div class="charts-row">
         <div class="chart-container">
-          <h3>Sync Operations by Direction</h3>
-          <canvas id="directionChart"></canvas>
+          <div class="chart-header">
+            <h3>Sync Directions</h3>
+            <span class="chart-badge">Live</span>
+          </div>
+          <canvas id="directionChart" class="chart-canvas"></canvas>
         </div>
         <div class="chart-container">
-          <h3>Sync Success vs Failure</h3>
-          <canvas id="successChart"></canvas>
+          <div class="chart-header">
+            <h3>Success vs Failure</h3>
+            <span class="chart-badge">Live</span>
+          </div>
+          <canvas id="successChart" class="chart-canvas"></canvas>
         </div>
+        <div class="chart-container">
+          <div class="chart-header">
+            <h3>Error Severity Distribution</h3>
+            <span class="chart-badge">Live</span>
+          </div>
+          <canvas id="severityChart" class="chart-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Events -->
+      <div class="activity-feed">
+        <div class="feed-header">
+          <h3>Recent Sync Events</h3>
+          <span class="feed-count" id="eventCount">0 events</span>
+        </div>
+        <div class="event-list" id="recentEvents">
+          <div class="loading">Waiting for events...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Tab: Sync Operations ═══════════════════════════ -->
+    <section class="tab-content" id="tab-sync">
+      <div class="panel-grid">
+        <div class="table-container">
+          <h3>Sync by Direction</h3>
+          <table class="data-table">
+            <thead>
+              <tr><th>Direction</th><th>Count</th><th>% of Total</th><th>Status</th></tr>
+            </thead>
+            <tbody id="directionBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="table-container">
+          <h3>Sync by Entity Type</h3>
+          <table class="data-table">
+            <thead>
+              <tr><th>Entity Type</th><th>Count</th><th>% of Total</th></tr>
+            </thead>
+            <tbody id="entityBody"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="chart-container full-width">
+        <div class="chart-header">
+          <h3>Response Time Distribution</h3>
+          <span class="chart-badge">Live</span>
+        </div>
+        <canvas id="responseTimeChart" class="chart-canvas chart-tall"></canvas>
       </div>
 
       <div class="activity-feed">
-        <h3>Recent Sync Events</h3>
-        <div class="event-list" id="recentEvents">
+        <h3>All Sync Events</h3>
+        <div class="event-list-full" id="fullEventList">
           <div class="loading">Loading events...</div>
         </div>
       </div>
     </section>
 
-    <!-- ── Tab: Sync Operations ──────────────────────────── -->
-    <section class="tab-content" id="tab-sync">
-      <div class="table-container">
-        <h3>Sync Operations Breakdown</h3>
-        <table class="data-table" id="directionTable">
-          <thead>
-            <tr>
-              <th>Direction</th>
-              <th>Count</th>
-              <th>% of Total</th>
-            </tr>
-          </thead>
-          <tbody id="directionBody">
-            <tr><td colspan="3" class="loading">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="table-container">
-        <h3>Success Rate Over Time</h3>
-        <div class="placeholder-chart">
-          <p>Real-time success rate tracking available when connected to GraphQL endpoint.</p>
-          <div class="metric-badge-group">
-            <span class="metric-badge success-badge" id="badgeSuccess">0 successful</span>
-            <span class="metric-badge error-badge" id="badgeFailed">0 failed</span>
-            <span class="metric-badge info-badge" id="badgeTotal">0 total</span>
-          </div>
+    <!-- ════ Tab: Rate Limiter ══════════════════════════════ -->
+    <section class="tab-content" id="tab-rate-limit">
+      <div class="stats-grid stats-grid-small">
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value" id="rlTotalChecks">0</span>
+          <span class="stat-label">Total Checks</span>
+        </div>
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value error-text" id="rlBlocked">0</span>
+          <span class="stat-label">Blocked</span>
+        </div>
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value" id="rlFailOpen">0</span>
+          <span class="stat-label">Fail-Open Events</span>
         </div>
       </div>
-    </section>
 
-    <!-- ── Tab: Rate Limiter ─────────────────────────────── -->
-    <section class="tab-content" id="tab-rate-limit">
       <div class="table-container">
-        <h3>Rate Limiter Status</h3>
-        <p class="table-description">Each key tracks requests per sliding window (default: 100 req/60s)</p>
-        <table class="data-table" id="rateLimitTable">
+        <h3>Active Rate Limit Keys</h3>
+        <p class="table-description">Each key tracks request counts in a sliding window (default: 100 req/60s)</p>
+        <table class="data-table">
           <thead>
-            <tr>
-              <th>Key</th>
-              <th>Status</th>
-              <th>Remaining</th>
-            </tr>
+            <tr><th>Key</th><th>Status</th><th>Remaining</th><th>Resets At</th></tr>
           </thead>
-          <tbody id="rateLimitBody">
-            <tr><td colspan="3" class="loading">No rate limit data. Perform some operations first.</td></tr>
-          </tbody>
+          <tbody id="rateLimitBody"><tr><td colspan="4" class="loading">No rate limit data yet.</td></tr></tbody>
         </table>
       </div>
 
       <div class="info-card">
         <h3>Rate Limiter Configuration</h3>
-        <div class="config-grid">
-          <div class="config-item">
-            <span class="config-label">Window</span>
-            <span class="config-value">60,000 ms</span>
-          </div>
-          <div class="config-item">
-            <span class="config-label">Max Requests</span>
-            <span class="config-value">100</span>
-          </div>
-          <div class="config-item">
-            <span class="config-label">Backend</span>
-            <span class="config-value">Redis (Sorted Sets)</span>
-          </div>
-          <div class="config-item">
-            <span class="config-label">Fail-Open</span>
-            <span class="config-value">Enabled</span>
-          </div>
+        <div class="config-grid config-grid-4">
+          <div class="config-item"><span class="config-label">Window</span><span class="config-value" id="rlWindow">60,000 ms</span></div>
+          <div class="config-item"><span class="config-label">Max Requests</span><span class="config-value" id="rlMax">100</span></div>
+          <div class="config-item"><span class="config-label">Backend</span><span class="config-value">Redis (Sorted Sets)</span></div>
+          <div class="config-item"><span class="config-label">Fail-Open</span><span class="config-value">Enabled</span></div>
         </div>
       </div>
     </section>
 
-    <!-- ── Tab: Adapters ─────────────────────────────────── -->
+    <!-- ════ Tab: Retry Handler ═════════════════════════════ -->
+    <section class="tab-content" id="tab-retry">
+      <div class="stats-grid stats-grid-small">
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value" id="retryTotalAttempts">0</span>
+          <span class="stat-label">Total Attempts</span>
+        </div>
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value success-text" id="retrySucceeded">0</span>
+          <span class="stat-label">Succeeded</span>
+        </div>
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value error-text" id="retryExhausted">0</span>
+          <span class="stat-label">Exhausted</span>
+        </div>
+        <div class="stat-card stat-card--compact">
+          <span class="stat-value warning-text" id="retryActive">0</span>
+          <span class="stat-label">Active Now</span>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <h3>Retry Operation History</h3>
+        <p class="table-description">Exponential backoff with 25% jitter, persisted in Redis</p>
+        <table class="data-table">
+          <thead>
+            <tr><th>Operation</th><th>Attempt</th><th>Max</th><th>Status</th><th>Started</th><th>Last Error</th></tr>
+          </thead>
+          <tbody id="retryBody"><tr><td colspan="6" class="loading">No retry data yet.</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="info-card">
+        <h3>Retry Configuration</h3>
+        <div class="config-grid config-grid-4">
+          <div class="config-item"><span class="config-label">Strategy</span><span class="config-value">Exponential Backoff + Jitter</span></div>
+          <div class="config-item"><span class="config-label">Max Attempts</span><span class="config-value" id="retryMaxAttempts">5</span></div>
+          <div class="config-item"><span class="config-label">Base Delay</span><span class="config-value" id="retryBaseDelay">1,000 ms</span></div>
+          <div class="config-item"><span class="config-label">Max Delay</span><span class="config-value" id="retryMaxDelay">60,000 ms</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Tab: Audit Log ═════════════════════════════════ -->
+    <section class="tab-content" id="tab-audit">
+      <div class="audit-controls">
+        <h3>Security Audit Log</h3>
+        <div class="audit-filters">
+          <button class="filter-btn active" data-severity="all">All</button>
+          <button class="filter-btn" data-severity="info">Info</button>
+          <button class="filter-btn" data-severity="warn">Warning</button>
+          <button class="filter-btn" data-severity="error">Error</button>
+          <button class="filter-btn" data-severity="critical">Critical</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr><th>Time</th><th>Event Type</th><th>Severity</th><th>Message</th><th>User</th><th>Source</th></tr>
+          </thead>
+          <tbody id="auditBody"><tr><td colspan="6" class="loading">Loading audit entries...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-container">
+          <h3>Audit Events by Severity</h3>
+          <canvas id="auditSeverityChart" class="chart-canvas"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Audit Events by Type</h3>
+          <canvas id="auditTypeChart" class="chart-canvas"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Tab: Adapters ══════════════════════════════════ -->
     <section class="tab-content" id="tab-adapters">
       <div class="adapters-grid">
         <div class="adapter-card" id="adapter-soap">
           <div class="adapter-header">
-            <h3>SOAP Client</h3>
+            <div class="adapter-title">
+              <span class="adapter-icon">📡</span>
+              <h3>SOAP Client</h3>
+            </div>
             <span class="status-badge" id="soapStatus">Checking...</span>
           </div>
+          <div class="adapter-stats">
+            <div class="adapter-stat"><span class="adapter-stat-value" id="soapCalls">0</span><span class="adapter-stat-label">Total Calls</span></div>
+            <div class="adapter-stat"><span class="adapter-stat-value error-text" id="soapErrors">0</span><span class="adapter-stat-label">Errors</span></div>
+            <div class="adapter-stat"><span class="adapter-stat-value" id="soapLastCall">--</span><span class="adapter-stat-label">Last Call</span></div>
+          </div>
           <div class="adapter-details">
-            <div class="detail-row">
-              <span>Endpoint</span>
-              <code>https://legacy.example.com/service?wsdl</code>
-            </div>
-            <div class="detail-row">
-              <span>Timeout</span>
-              <code>10,000 ms</code>
-            </div>
-            <div class="detail-row">
-              <span>Mock Failure Rate</span>
-              <code>10% (503)</code>
-            </div>
+            <div class="detail-row"><span>Endpoint</span><code>https://legacy.example.com/service?wsdl</code></div>
+            <div class="detail-row"><span>Timeout</span><code id="soapTimeout">10,000 ms</code></div>
+            <div class="detail-row"><span>Mock Failure Rate</span><code>10% (503)</code></div>
           </div>
         </div>
 
         <div class="adapter-card" id="adapter-sql">
           <div class="adapter-header">
-            <h3>SQL Adapter</h3>
+            <div class="adapter-title">
+              <span class="adapter-icon">🗄️</span>
+              <h3>SQL Adapter</h3>
+            </div>
             <span class="status-badge" id="sqlStatus">Checking...</span>
           </div>
+          <div class="adapter-stats">
+            <div class="adapter-stat"><span class="adapter-stat-value" id="sqlCalls">0</span><span class="adapter-stat-label">Total Calls</span></div>
+            <div class="adapter-stat"><span class="adapter-stat-value error-text" id="sqlErrors">0</span><span class="adapter-stat-label">Errors</span></div>
+            <div class="adapter-stat"><span class="adapter-stat-value" id="sqlLastCall">--</span><span class="adapter-stat-label">Last Call</span></div>
+          </div>
           <div class="adapter-details">
-            <div class="detail-row">
-              <span>Connection</span>
-              <code>postgresql://localhost:5432/legacy</code>
-            </div>
-            <div class="detail-row">
-              <span>Schema</span>
-              <code>public</code>
-            </div>
-            <div class="detail-row">
-              <span>Tables</span>
-              <code>customers, orders</code>
-            </div>
+            <div class="detail-row"><span>Connection</span><code>postgresql://localhost:5432/legacy</code></div>
+            <div class="detail-row"><span>Schema</span><code>public</code></div>
+            <div class="detail-row"><span>Tables</span><code>customers, orders</code></div>
           </div>
         </div>
 
         <div class="adapter-card" id="adapter-redis">
           <div class="adapter-header">
-            <h3>Redis</h3>
+            <div class="adapter-title">
+              <span class="adapter-icon">⚡</span>
+              <h3>Redis</h3>
+            </div>
             <span class="status-badge" id="redisStatus">Checking...</span>
           </div>
+          <div class="adapter-stats">
+            <div class="adapter-stat"><span class="adapter-stat-value" id="redisUptime">0</span><span class="adapter-stat-label">Uptime</span></div>
+            <div class="adapter-stat"><span class="adapter-stat-value" id="redisLatency">--</span><span class="adapter-stat-label">Latency</span></div>
+          </div>
           <div class="adapter-details">
-            <div class="detail-row">
-              <span>Host</span>
-              <code>localhost:6379</code>
-            </div>
-            <div class="detail-row">
-              <span>Key Prefix</span>
-              <code>api-bridge:</code>
-            </div>
-            <div class="detail-row">
-              <span>Usage</span>
-              <code>Rate Limiter + Retry State</code>
-            </div>
+            <div class="detail-row"><span>Host</span><code>localhost:6379</code></div>
+            <div class="detail-row"><span>Key Prefix</span><code>api-bridge:</code></div>
+            <div class="detail-row"><span>Usage</span><code>Rate Limiter + Retry State</code></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Tab: Errors ───────────────────────────────────── -->
+    <!-- ════ Tab: Configuration ═════════════════════════════ -->
+    <section class="tab-content" id="tab-config">
+      <div class="config-sections">
+        <div class="config-section">
+          <div class="config-section-header">
+            <h3>⚙️ Server</h3>
+            <button id="refreshConfigBtn" class="link-btn">Refresh</button>
+          </div>
+          <div class="config-table" id="configServer"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>🔐 Security</h3></div>
+          <div class="config-table" id="configSecurity"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>📡 Redis & Rate Limiter</h3></div>
+          <div class="config-table" id="configRedis"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>🔄 Retry</h3></div>
+          <div class="config-table" id="configRetry"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>📬 SOAP</h3></div>
+          <div class="config-table" id="configSoap"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>🗄️ SQL</h3></div>
+          <div class="config-table" id="configSql"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>🔁 Sync</h3></div>
+          <div class="config-table" id="configSync"></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-header"><h3>📝 Logging</h3></div>
+          <div class="config-table" id="configLog"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Tab: Errors ════════════════════════════════════ -->
     <section class="tab-content" id="tab-errors">
       <div class="table-container">
-        <h3>Recent Errors</h3>
-        <table class="data-table" id="errorsTable">
+        <div class="table-header-actions">
+          <h3>Error Log</h3>
+          <span class="error-count-badge" id="errorCount">0 errors</span>
+        </div>
+        <table class="data-table">
           <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Operation</th>
-              <th>Error</th>
-            </tr>
+            <tr><th>Timestamp</th><th>Source</th><th>Error</th></tr>
           </thead>
-          <tbody id="errorsBody">
-            <tr><td colspan="3" class="loading">No errors recorded.</td></tr>
-          </tbody>
+          <tbody id="errorsBody"><tr><td colspan="3" class="loading">No errors recorded. Bridge is healthy.</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -252,8 +459,17 @@
 
   <!-- ─── Footer ─────────────────────────────────────────── -->
   <footer class="footer">
-    <p>Custom Integration Connector · API Bridge · Built with TypeScript, GraphQL, Redis</p>
-    <p class="footer-refresh">Auto-refreshes every 5s · <button id="refreshBtn" class="link-btn">Refresh now</button></p>
+    <div class="footer-content">
+      <p>Custom Integration Connector · API Bridge</p>
+      <p class="footer-tech">TypeScript · GraphQL · Redis · Express</p>
+    </div>
+    <p class="footer-refresh">
+      <span id="lastUpdate">Last update: --</span>
+      <span class="footer-sep">·</span>
+      Auto-refreshes via SSE
+      <span class="footer-sep">·</span>
+      <button id="refreshBtn" class="link-btn">Refresh now</button>
+    </p>
   </footer>
 
   <script src="/app.js"></script>
