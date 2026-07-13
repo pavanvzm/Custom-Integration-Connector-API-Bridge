@@ -60,3 +60,43 @@ export class ConfigurationError extends BridgeError {
     this.name = "ConfigurationError";
   }
 }
+
+// ─── Security Error Classes ──────────────────────────────
+
+export class AuthenticationError extends BridgeError {
+  constructor(message = "Authentication required") {
+    super(message, "AUTHENTICATION_REQUIRED", 401);
+    this.name = "AuthenticationError";
+  }
+}
+
+export class AuthorizationError extends BridgeError {
+  constructor(message = "Insufficient permissions", role?: string, requiredPermission?: string) {
+    super(message, "FORBIDDEN", 403, { role, requiredPermission });
+    this.name = "AuthorizationError";
+  }
+}
+
+export class ValidationError extends BridgeError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "VALIDATION_ERROR", 400, details);
+    this.name = "ValidationError";
+  }
+}
+
+export class EncryptionError extends BridgeError {
+  constructor(message = "Encryption operation failed") {
+    super(message, "ENCRYPTION_ERROR", 500);
+    this.name = "EncryptionError";
+  }
+}
+
+export class RateLimitExceededError extends BridgeError {
+  constructor(key: string, retryAfterMs: number) {
+    super(`Rate limit exceeded for "${key}"`, "RATE_LIMIT_EXCEEDED", 429, {
+      key,
+      retryAfterMs,
+    });
+    this.name = "RateLimitExceededError";
+  }
+}

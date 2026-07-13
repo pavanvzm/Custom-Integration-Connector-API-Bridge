@@ -35,15 +35,24 @@
   "license": "MIT",
   "dependencies": {
     "@apollo/server": "^4.11.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "graphql": "^16.9.0",
+    "graphql-depth-limit": "^1.1.0",
     "graphql-tag": "^2.12.6",
+    "helmet": "^8.3.0",
     "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.3",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

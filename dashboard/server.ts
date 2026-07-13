@@ -1,14 +1,121 @@
 import express from "express";
+import helmet from "helmet";
+import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../src/config/index.js";
 import { logger } from "../src/utils/logger.js";
-import { RateLimiter } from "../src/middleware/rate-limiter.js";
-import { RetryHandler } from "../src/middleware/retry.js";
+import { auditLogger } from "../src/security/audit-logger.js";
+import { AuthenticationError } from "../src/utils/errors.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = config.port + 1; // Dashboard on port 4001 by default
+
+// ─── Security Middleware ───────────────────────────────────
+
+// Helmet — HTTP security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hidePoweredBy: true,
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+  noSniff: true,
+  xssFilter: true,
+  frameguard: { action: "deny" },
+}));
+
+// CORS — restrict to configured origins
+app.use(cors({
+  origin: config.security.corsOrigins,
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+  maxAge: 86400,
+}));
+
+// Payload size limit
+app.use(express.json({ limit: "1mb" }));
+
+// ─── Dashboard Authentication ─────────────────────────────
+function dashboardAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  // Skip auth for static assets in development
+  if (!config.security.dashboardAuthEnabled && config.nodeEnv === "development") {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    res.setHeader("WWW-Authenticate", "Basic realm=\"API Bridge Dashboard\"");
+    res.status(401).json({
+      error: "Authentication required",
+      code: "AUTH_REQUIRED",
+    });
+    return;
+  }
+
+  try {
+    const base64 = authHeader.slice(6);
+    const decoded = Buffer.from(base64, "base64").toString("utf8");
+    const [username, password] = decoded.split(":");
+
+    if (
+      username === config.security.dashboardUsername &&
+      password === config.security.dashboardPassword
+    ) {
+      auditLogger.info("AUTH_SUCCESS", {
+        method: "basic_auth",
+        userId: username,
+        source: "dashboard",
+      });
+      return next();
+    }
+
+    auditLogger.warn("AUTH_FAILURE", {
+      method: "basic_auth",
+      userId: username,
+      source: "dashboard",
+      reason: "Invalid credentials",
+    });
+
+    res.setHeader("WWW-Authenticate", "Basic realm=\"API Bridge Dashboard\"");
+    res.status(401).json({
+      error: "Invalid credentials",
+      code: "AUTH_FAILED",
+    });
+  } catch {
+    res.status(400).json({ error: "Invalid authorization header", code: "BAD_REQUEST" });
+  }
+}
+
+// ─── Audit logging middleware ─────────────────────────────
+function auditMiddleware(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const start = Date.now();
+  res.on("finish", () => {
+    logger.debug({
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      duration: Date.now() - start,
+      ip: req.ip,
+    }, "Dashboard request");
+  });
+  next();
+}
+
+app.use(auditMiddleware);
 
 // ─── Static files ──────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "public")));
@@ -66,34 +173,29 @@ const metrics: MetricsSnapshot = {
   },
 };
 
-// ─── Start time ───────────────────────────────────────────
 const startTime = Date.now();
 
 // ─── REST API Endpoints ───────────────────────────────────
 
-// GET /api/metrics — full metrics snapshot
-app.get("/api/metrics", (_req, res) => {
+// GET /api/metrics — full metrics snapshot (requires auth)
+app.get("/api/metrics", dashboardAuth, (_req, res) => {
   metrics.timestamp = new Date().toISOString();
   metrics.uptime = Date.now() - startTime;
   res.json(metrics);
 });
 
-// GET /api/metrics/sync — sync operation stats
-app.get("/api/metrics/sync", (_req, res) => {
+app.get("/api/metrics/sync", dashboardAuth, (_req, res) => {
   res.json(metrics.syncOperations);
 });
 
-// GET /api/metrics/rate-limit — rate limiter stats
-app.get("/api/metrics/rate-limit", (_req, res) => {
+app.get("/api/metrics/rate-limit", dashboardAuth, (_req, res) => {
   res.json(metrics.rateLimiter);
 });
 
-// GET /api/metrics/errors — recent errors
-app.get("/api/metrics/errors", (_req, res) => {
+app.get("/api/metrics/errors", dashboardAuth, (_req, res) => {
   res.json(metrics.recentErrors);
 });
 
-// GET /api/metrics/health — health check
 app.get("/api/metrics/health", (_req, res) => {
   res.json({
     status: "healthy",
@@ -103,13 +205,11 @@ app.get("/api/metrics/health", (_req, res) => {
   });
 });
 
-// GET /api/metrics/adapters — adapter status
-app.get("/api/metrics/adapters", (_req, res) => {
+app.get("/api/metrics/adapters", dashboardAuth, (_req, res) => {
   res.json(metrics.adapterStatus);
 });
 
-// POST /api/metrics/sync/record — record a sync operation (called from main server)
-app.post("/api/metrics/sync/record", express.json(), (req, res) => {
+app.post("/api/metrics/sync/record", dashboardAuth, express.json(), (req, res) => {
   const { direction, success, error } = req.body;
 
   metrics.syncOperations.total++;
@@ -130,7 +230,6 @@ app.post("/api/metrics/sync/record", express.json(), (req, res) => {
       operation: direction ?? "unknown",
       error,
     });
-    // Keep last 50 errors
     if (metrics.recentErrors.length > 50) {
       metrics.recentErrors.pop();
     }
@@ -139,40 +238,41 @@ app.post("/api/metrics/sync/record", express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Dashboard page (auth-protected) ─────────────────────
+app.get("/", dashboardAuth, (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 // ─── Start server ─────────────────────────────────────────
 async function startDashboard(): Promise<void> {
-  // Try to connect Redis to check status
-  let rateLimiter: RateLimiter | null = null;
-  let retryHandler: RetryHandler | null = null;
+  auditLogger.info("SYSTEM_STARTUP", { component: "dashboard", port: PORT });
 
   try {
-    rateLimiter = new RateLimiter();
+    const { RateLimiter } = await import("../src/middleware/rate-limiter.js");
+    const rateLimiter = new RateLimiter();
     await rateLimiter.connect();
     metrics.adapterStatus.redis = "connected";
     logger.info("Dashboard connected to Redis");
   } catch {
     metrics.adapterStatus.redis = "disconnected";
-    logger.warn("Dashboard could not connect to Redis — rate limit metrics unavailable");
+    logger.warn("Dashboard could not connect to Redis");
   }
 
-  // Simulate adapter connection checks
   metrics.adapterStatus.soap = "connected";
   metrics.adapterStatus.sql = "connected";
 
   app.listen(PORT, () => {
     logger.info({ port: PORT }, `Dashboard server running on http://localhost:${PORT}`);
-    logger.info({ apiEndpoint: `http://localhost:${PORT}/api/metrics` }, "Dashboard API");
   });
 }
 
-// ─── Graceful shutdown ────────────────────────────────────
 process.on("SIGINT", () => {
-  logger.info("Dashboard shutting down");
+  auditLogger.info("SYSTEM_SHUTDOWN", { component: "dashboard" });
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  logger.info("Dashboard shutting down");
+  auditLogger.info("SYSTEM_SHUTDOWN", { component: "dashboard" });
   process.exit(0);
 });
 

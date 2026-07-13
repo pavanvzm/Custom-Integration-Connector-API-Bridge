@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SyncEngine, SyncEventStore } from "../src/bridge/sync-engine.js";
 import { SoapClient } from "../src/adapters/soap-client.js";
 import { SqlAdapter } from "../src/adapters/sql-adapter.js";
@@ -11,6 +11,9 @@ describe("SyncEngine", () => {
   let sqlAdapter: SqlAdapter;
 
   beforeEach(async () => {
+    // Mock Math.random to avoid random SOAP failures
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+
     soapClient = new SoapClient({
       wsdlUrl: "https://test.example.com/service?wsdl",
       username: "test",
@@ -33,6 +36,10 @@ describe("SyncEngine", () => {
 
     eventStore = new SyncEventStore();
     syncEngine = new SyncEngine(soapClient, sqlAdapter, mockRetry, eventStore);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("syncFromSoap", () => {

@@ -9,6 +9,9 @@ import { RetryHandler } from "./middleware/retry.js";
 import { SyncEngine, SyncEventStore } from "./bridge/sync-engine.js";
 import { typeDefs } from "./graphql/schema.js";
 import { createResolvers } from "./graphql/resolvers.js";
+import { createSecurityPlugin, SecurityContext } from "./security/security-plugin.js";
+import { authManager } from "./security/auth.js";
+import { auditLogger } from "./security/audit-logger.js";
 
 // ─── Module-level references for graceful shutdown ────────
 let soapClient: SoapClient | null = null;
@@ -65,11 +68,28 @@ async function main(): Promise<void> {
     syncEventStore,
   });
 
+  // ─── Security Plugin ────────────────────────────────────
+  const securityPlugin = createSecurityPlugin();
+
   const server = new ApolloServer({
     typeDefs,
     resolvers,
-    includeStacktraceInErrorResponses: config.nodeEnv === "development",
+    includeStacktraceInErrorResponses: config.nodeEnv === "development" && config.security.authEnabled === false,
+    plugins: [securityPlugin],
     formatError: (formattedError) => {
+      // Sanitize errors in production — never leak internals
+      if (config.nodeEnv === "production") {
+        auditLogger.warn("SYNC_FAILED", {
+          error: formattedError.message,
+          code: formattedError.extensions?.code,
+        });
+        return {
+          message: formattedError.message,
+          extensions: {
+            code: formattedError.extensions?.code ?? "INTERNAL_ERROR",
+          },
+        };
+      }
       logger.error({ error: formattedError }, "GraphQL error");
       return formattedError;
     },
@@ -85,6 +105,8 @@ async function main(): Promise<void> {
       retryHandler: retryHandler!,
       syncEngine: syncEngine!,
       syncEventStore: syncEventStore!,
+      authManager,
+      auditLogger,
     }),
   });
 

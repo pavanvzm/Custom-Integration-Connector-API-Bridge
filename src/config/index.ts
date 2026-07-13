@@ -39,6 +39,19 @@ export interface Config {
     level: string;
     prettyPrint: boolean;
   };
+  security: {
+    jwtSecret: string;
+    jwtExpiresIn: string;
+    encryptionKey: string;
+    authEnabled: boolean;
+    graphqlIntrospection: boolean;
+    maxQueryDepth: number;
+    corsOrigins: string[];
+    dashboardAuthEnabled: boolean;
+    dashboardUsername: string;
+    dashboardPassword: string;
+    maxPayloadSize: string;
+  };
 }
 
 function getEnvVar(key: string, defaultValue?: string): string {
@@ -57,6 +70,18 @@ function getEnvInt(key: string, defaultValue: number): number {
     throw new Error(`Environment variable ${key} must be an integer, got: ${raw}`);
   }
   return parsed;
+}
+
+function getEnvBool(key: string, defaultValue: boolean): boolean {
+  const raw = process.env[key];
+  if (raw === undefined) return defaultValue;
+  return raw === "true" || raw === "1";
+}
+
+function getEnvArray(key: string, defaultValue: string[]): string[] {
+  const raw = process.env[key];
+  if (!raw) return defaultValue;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 export function loadConfig(): Config {
@@ -96,6 +121,19 @@ export function loadConfig(): Config {
     log: {
       level: getEnvVar("LOG_LEVEL", "info"),
       prettyPrint: process.env.LOG_PRETTY === "true",
+    },
+    security: {
+      jwtSecret: getEnvVar("JWT_SECRET", "dev-jwt-secret-change-in-production-min-32-chars!"),
+      jwtExpiresIn: getEnvVar("JWT_EXPIRES_IN", "1h"),
+      encryptionKey: getEnvVar("ENCRYPTION_KEY", "dev-encryption-key-change!"),
+      authEnabled: getEnvBool("AUTH_ENABLED", true),
+      graphqlIntrospection: getEnvBool("GRAPHQL_INTROSPECTION", false),
+      maxQueryDepth: getEnvInt("MAX_QUERY_DEPTH", 7),
+      corsOrigins: getEnvArray("CORS_ORIGINS", ["http://localhost:4001"]),
+      dashboardAuthEnabled: getEnvBool("DASHBOARD_AUTH_ENABLED", true),
+      dashboardUsername: getEnvVar("DASHBOARD_USERNAME", "admin"),
+      dashboardPassword: getEnvVar("DASHBOARD_PASSWORD", ""),
+      maxPayloadSize: getEnvVar("MAX_PAYLOAD_SIZE", "1mb"),
     },
   };
 }
