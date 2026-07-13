@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { config } from "../config/index.js";
 import { RateLimitError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";

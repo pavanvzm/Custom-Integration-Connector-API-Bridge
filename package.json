@@ -5,11 +5,19 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:dashboard": "tsx watch dashboard/server.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:dashboard": "node dist/dashboard/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "_dashboardConfig": {
+    "install": "npm install",
+    "dev": "tsx watch dashboard/server.ts",
+    "build": "tsc",
+    "start": "node dist/dashboard/server.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -23,10 +31,13 @@
     "rate-limiter",
     "typescript"
   ],
+  "type": "module",
   "license": "MIT",
   "dependencies": {
     "@apollo/server": "^4.11.0",
+    "@types/express": "^5.0.6",
     "dotenv": "^16.4.5",
+    "express": "^5.2.1",
     "graphql": "^16.9.0",
     "graphql-tag": "^2.12.6",
     "ioredis": "^5.4.1",

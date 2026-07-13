@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Bridge Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- ─── Header ─────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <h1>API Bridge Dashboard</h1>
+      </div>
+      <div class="header-meta">
+        <span class="health-indicator" id="healthIndicator">
+          <span class="health-dot"></span>
+          <span id="healthText">Checking...</span>
+        </span>
+        <span class="uptime" id="uptime">Uptime: --</span>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview">Overview</button>
+      <button class="nav-tab" data-tab="sync">Sync Operations</button>
+      <button class="nav-tab" data-tab="rate-limit">Rate Limiter</button>
+      <button class="nav-tab" data-tab="adapters">Adapters</button>
+      <button class="nav-tab" data-tab="errors">Errors</button>
+    </nav>
+  </header>
+
+  <!-- ─── Main Content ───────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ── Tab: Overview ─────────────────────────────────── -->
+    <section class="tab-content active" id="tab-overview">
+      <div class="stats-grid">
+        <div class="stat-card stat-card--total">
+          <div class="stat-icon">🔄</div>
+          <div class="stat-info">
+            <span class="stat-value" id="totalOps">0</span>
+            <span class="stat-label">Total Sync Operations</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--success">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <span class="stat-value success-text" id="successOps">0</span>
+            <span class="stat-label">Successful</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--failed">
+          <div class="stat-icon">❌</div>
+          <div class="stat-info">
+            <span class="stat-value error-text" id="failedOps">0</span>
+            <span class="stat-label">Failed</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--success-rate">
+          <div class="stat-icon">📊</div>
+          <div class="stat-info">
+            <span class="stat-value" id="successRate">100%</span>
+            <span class="stat-label">Success Rate</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-container">
+          <h3>Sync Operations by Direction</h3>
+          <canvas id="directionChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Sync Success vs Failure</h3>
+          <canvas id="successChart"></canvas>
+        </div>
+      </div>
+
+      <div class="activity-feed">
+        <h3>Recent Sync Events</h3>
+        <div class="event-list" id="recentEvents">
+          <div class="loading">Loading events...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Tab: Sync Operations ──────────────────────────── -->
+    <section class="tab-content" id="tab-sync">
+      <div class="table-container">
+        <h3>Sync Operations Breakdown</h3>
+        <table class="data-table" id="directionTable">
+          <thead>
+            <tr>
+              <th>Direction</th>
+              <th>Count</th>
+              <th>% of Total</th>
+            </tr>
+          </thead>
+          <tbody id="directionBody">
+            <tr><td colspan="3" class="loading">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container">
+        <h3>Success Rate Over Time</h3>
+        <div class="placeholder-chart">
+          <p>Real-time success rate tracking available when connected to GraphQL endpoint.</p>
+          <div class="metric-badge-group">
+            <span class="metric-badge success-badge" id="badgeSuccess">0 successful</span>
+            <span class="metric-badge error-badge" id="badgeFailed">0 failed</span>
+            <span class="metric-badge info-badge" id="badgeTotal">0 total</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Tab: Rate Limiter ─────────────────────────────── -->
+    <section class="tab-content" id="tab-rate-limit">
+      <div class="table-container">
+        <h3>Rate Limiter Status</h3>
+        <p class="table-description">Each key tracks requests per sliding window (default: 100 req/60s)</p>
+        <table class="data-table" id="rateLimitTable">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Status</th>
+              <th>Remaining</th>
+            </tr>
+          </thead>
+          <tbody id="rateLimitBody">
+            <tr><td colspan="3" class="loading">No rate limit data. Perform some operations first.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-card">
+        <h3>Rate Limiter Configuration</h3>
+        <div class="config-grid">
+          <div class="config-item">
+            <span class="config-label">Window</span>
+            <span class="config-value">60,000 ms</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Max Requests</span>
+            <span class="config-value">100</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Backend</span>
+            <span class="config-value">Redis (Sorted Sets)</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Fail-Open</span>
+            <span class="config-value">Enabled</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Tab: Adapters ─────────────────────────────────── -->
+    <section class="tab-content" id="tab-adapters">
+      <div class="adapters-grid">
+        <div class="adapter-card" id="adapter-soap">
+          <div class="adapter-header">
+            <h3>SOAP Client</h3>
+            <span class="status-badge" id="soapStatus">Checking...</span>
+          </div>
+          <div class="adapter-details">
+            <div class="detail-row">
+              <span>Endpoint</span>
+              <code>https://legacy.example.com/service?wsdl</code>
+            </div>
+            <div class="detail-row">
+              <span>Timeout</span>
+              <code>10,000 ms</code>
+            </div>
+            <div class="detail-row">
+              <span>Mock Failure Rate</span>
+              <code>10% (503)</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="adapter-card" id="adapter-sql">
+          <div class="adapter-header">
+            <h3>SQL Adapter</h3>
+            <span class="status-badge" id="sqlStatus">Checking...</span>
+          </div>
+          <div class="adapter-details">
+            <div class="detail-row">
+              <span>Connection</span>
+              <code>postgresql://localhost:5432/legacy</code>
+            </div>
+            <div class="detail-row">
+              <span>Schema</span>
+              <code>public</code>
+            </div>
+            <div class="detail-row">
+              <span>Tables</span>
+              <code>customers, orders</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="adapter-card" id="adapter-redis">
+          <div class="adapter-header">
+            <h3>Redis</h3>
+            <span class="status-badge" id="redisStatus">Checking...</span>
+          </div>
+          <div class="adapter-details">
+            <div class="detail-row">
+              <span>Host</span>
+              <code>localhost:6379</code>
+            </div>
+            <div class="detail-row">
+              <span>Key Prefix</span>
+              <code>api-bridge:</code>
+            </div>
+            <div class="detail-row">
+              <span>Usage</span>
+              <code>Rate Limiter + Retry State</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Tab: Errors ───────────────────────────────────── -->
+    <section class="tab-content" id="tab-errors">
+      <div class="table-container">
+        <h3>Recent Errors</h3>
+        <table class="data-table" id="errorsTable">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Operation</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody id="errorsBody">
+            <tr><td colspan="3" class="loading">No errors recorded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Footer ─────────────────────────────────────────── -->
+  <footer class="footer">
+    <p>Custom Integration Connector · API Bridge · Built with TypeScript, GraphQL, Redis</p>
+    <p class="footer-refresh">Auto-refreshes every 5s · <button id="refreshBtn" class="link-btn">Refresh now</button></p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,6 +1,4 @@
-import gql from "graphql-tag";
-
-export const typeDefs = gql`
+export const typeDefs = `
   # ─── Scalar Types ──────────────────────────────────────────────
   scalar DateTime
   scalar JSON
